@@ -23,12 +23,12 @@ if (!isset($base_url)) {
     // Siapkan nilai default jika halaman bukan halaman detail komik
     $meta_title = isset($og_title) ? $og_title : "Readmanga - Baca Manga Online";
     $meta_desc = isset($og_desc) ? $og_desc : "Tempat baca manga, manhwa, dan manhua bahasa Indonesia terbaik dan terlengkap.";
-    $meta_image = isset($og_image) ? $og_image : "https://i.ibb.co.com/qYP6kYDy/default-cove.jpg";
+    $meta_image = isset($og_image) ? $og_image : "https://i.ibb.co/qYP6kYDy/default-cove.jpg";
     $meta_url = isset($og_url) ? $og_url : $base_url;
     ?>
     
     <title><?= $meta_title ?></title>
-    <link rel="icon" href="<?= $base_url ?>/assets/favicon.png" type="image/png">
+    <link rel="icon" href="<?= $base_url ?>/assets/favicon.png?v=2" type="image/png">
 
     <meta name="description" content="<?= $meta_desc ?>">
 
