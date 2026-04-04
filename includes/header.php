@@ -41,7 +41,7 @@ if (!isset($base_url)) {
     <meta name="twitter:title" content="<?= $meta_title ?>">
     <meta name="twitter:description" content="<?= $meta_desc ?>">
     <meta name="twitter:image" content="<?= $meta_image ?>">
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -57,7 +57,7 @@ if (!isset($base_url)) {
         <div class="flex items-center justify-between h-16">
             
             <div class="flex-shrink-0 flex items-center gap-2">
-                <a href="index.php" class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 hover:opacity-80 transition">
+                <a href="<?= $base_url ?>" class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 hover:opacity-80 transition">
                     Readmanga
                 </a>
             </div>
@@ -65,7 +65,7 @@ if (!isset($base_url)) {
             <div class="hidden md:flex items-center space-x-4">
                 
                 <div class="relative w-64 group" id="desktopSearchContainer">
-                    <form action="search.php" method="GET" class="relative">
+                    <form action="search" method="GET" class="relative">
                         <input type="text" name="q" placeholder="Cari komik..." autocomplete="off"
                             class="w-full bg-gray-800 text-sm text-gray-200 rounded-full pl-4 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-gray-700 transition-all"
                             onkeyup="doLiveSearch(this.value, 'desktopSearchResults')">
@@ -84,11 +84,11 @@ if (!isset($base_url)) {
                         <?php if (isAdmin()): ?>
                             <a href="admin/index.php" class="text-indigo-400 hover:text-indigo-300" title="Admin Panel"><i class="fas fa-cogs"></i></a>
                         <?php endif; ?>
-                        <a href="logout.php" class="text-red-400 hover:text-red-300" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
+                        <a href="logout" class="text-red-400 hover:text-red-300" title="Logout"><i class="fas fa-sign-out-alt"></i></a>
                     </div>
                 <?php else: ?>
-                    <a href="login.php" class="text-gray-300 hover:text-white font-medium">Masuk</a>
-                    <a href="register.php" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-bold text-sm shadow-lg shadow-indigo-500/20">Daftar</a>
+                    <a href="login" class="text-gray-300 hover:text-white font-medium">Masuk</a>
+                    <a href="register" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-bold text-sm shadow-lg shadow-indigo-500/20">Daftar</a>
                 <?php endif; ?>
             </div>
 
@@ -105,7 +105,7 @@ if (!isset($base_url)) {
     </div>
 
     <div id="mobileSearchBar" class="hidden md:hidden bg-gray-800 border-b border-gray-700 p-4 absolute w-full top-16 left-0 shadow-xl transition-all duration-300 z-40">
-        <form action="search.php" method="GET" class="relative">
+        <form action="search" method="GET" class="relative">
             <input type="text" name="q" id="mobileSearchInput" placeholder="Ketik judul komik..." autocomplete="off"
                    class="w-full bg-gray-900 text-white rounded-lg pl-4 pr-10 py-3 border border-gray-600 focus:border-indigo-500 outline-none"
                    onkeyup="doLiveSearch(this.value, 'mobileSearchResults')">
@@ -126,7 +126,7 @@ if (!isset($base_url)) {
         </div>
 
         <div class="flex flex-col space-y-4">
-            <a href="index.php" class="flex items-center text-gray-300 hover:text-indigo-400 transition"><i class="fas fa-home w-6 mr-2"></i> Beranda</a>
+            <a href="<?= $base_url ?>" class="flex items-center text-gray-300 hover:text-indigo-400 transition"><i class="fas fa-home w-6 mr-2"></i> Beranda</a>
             <a href="search.php?filter=open" class="flex items-center text-gray-300 hover:text-indigo-400 transition"><i class="fas fa-sliders-h w-6 mr-2"></i> Filter Pencarian</a>
             
             <div class="border-t border-gray-800 my-2 pt-2"></div>
@@ -144,10 +144,10 @@ if (!isset($base_url)) {
                 <?php if (isAdmin()): ?>
                     <a href="admin/index.php" class="flex items-center text-indigo-400 hover:text-white transition"><i class="fas fa-cogs w-6 mr-2"></i> Admin Panel</a>
                 <?php endif; ?>
-                <a href="logout.php" class="flex items-center text-red-400 hover:text-red-300 transition"><i class="fas fa-sign-out-alt w-6 mr-2"></i> Logout</a>
+                <a href="logout" class="flex items-center text-red-400 hover:text-red-300 transition"><i class="fas fa-sign-out-alt w-6 mr-2"></i> Logout</a>
             <?php else: ?>
-                <a href="login.php" class="block w-full text-center py-2 border border-gray-600 rounded-lg text-white hover:bg-gray-800">Masuk</a>
-                <a href="register.php" class="block w-full text-center py-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-700 font-bold">Daftar</a>
+                <a href="login" class="block w-full text-center py-2 border border-gray-600 rounded-lg text-white hover:bg-gray-800">Masuk</a>
+                <a href="register" class="block w-full text-center py-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-700 font-bold">Daftar</a>
             <?php endif; ?>
         </div>
     </div>
