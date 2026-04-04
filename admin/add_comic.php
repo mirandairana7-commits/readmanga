@@ -52,14 +52,14 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'upload_cover') {
 $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['ajax_action'])) {
-    $title = mysqli_real_escape_string($conn, $_POST['title']);
-    $alt_titles = mysqli_real_escape_string($conn, $_POST['alternative_titles']);
-    $description = mysqli_real_escape_string($conn, $_POST['description']);
-    $external_link = mysqli_real_escape_string($conn, $_POST['external_link']); 
-    $link_label = mysqli_real_escape_string($conn, $_POST['link_label']); 
-    $author = mysqli_real_escape_string($conn, $_POST['author']); 
-    $genres = mysqli_real_escape_string($conn, $_POST['genres']);
-    $release_year = mysqli_real_escape_string($conn, $_POST['release_year']);
+    $title = trim($_POST['title']);
+    $alt_titles = trim($_POST['alternative_titles']);
+    $description = trim($_POST['description']);
+    $external_link = trim($_POST['external_link']); 
+    $link_label = trim($_POST['link_label']); 
+    $author = trim($_POST['author']); 
+    $genres = trim($_POST['genres']);
+    $release_year = trim($_POST['release_year']);
     $status = $_POST['status'];
     $type = $_POST['type'];
     
@@ -69,16 +69,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['ajax_action'])) {
     
     $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $title)));
 
-    // Cover langsung ambil dari URL hasil AJAX ImgBB atau Auto-Fill (Lebih Hemat Server)
     $cover_name = 'default.jpg';
     if (!empty($_POST['fetched_cover_url'])) {
-        $cover_name = mysqli_real_escape_string($conn, $_POST['fetched_cover_url']);
+        $cover_name = trim($_POST['fetched_cover_url']);
     }
 
+    // [KEAMANAN DITINGKATKAN]: Prepared Statement untuk INSERT Komik
     $query = "INSERT INTO comics (title, slug, alternative_titles, description, author, artist, genres, serialization, release_year, status, type, score, cover_image, external_link, link_label) 
-              VALUES ('$title', '$slug', '$alt_titles', '$description', '$author', '$artist', '$genres', '$serialization', '$release_year', '$status', '$type', '$score', '$cover_name', '$external_link', '$link_label')";
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+              
+    $stmt = mysqli_prepare($conn, $query);
     
-    if (mysqli_query($conn, $query)) {
+    // Bind data (s=string, d=double/integer)
+    mysqli_stmt_bind_param($stmt, "sssssssssssddss", $title, $slug, $alt_titles, $description, $author, $artist, $genres, $serialization, $release_year, $status, $type, $score, $cover_name, $external_link, $link_label);
+    
+    if (mysqli_stmt_execute($stmt)) {
+        mysqli_stmt_close($stmt);
         header("Location: " . $base_url . "/admin/index.php");
         exit();
     } else {

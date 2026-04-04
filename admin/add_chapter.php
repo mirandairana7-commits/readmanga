@@ -4,8 +4,8 @@ ob_start();
 session_start();
 require_once '../config/database.php';
 
-// Supaya proses upload banyak gambar tidak putus (5 menit)
-set_time_limit(300); 
+// Supaya proses upload banyak gambar tidak putus
+set_time_limit(0); 
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../login.php");
@@ -16,40 +16,47 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 // 1. API AJAX HANDLER (Backend)
 // ==========================================
 if (isset($_POST['ajax_action'])) {
-    ob_clean(); // Hapus output HTML sebelumnya agar JSON bersih
+    ob_clean();
     header('Content-Type: application/json');
 
     try {
-        // A. Create Chapter Database
+        // A. Create Chapter Database (DIUPGRADE KE PREPARED STATEMENT)
         if ($_POST['ajax_action'] === 'create_chapter') {
             $comic_id = intval($_POST['comic_id']);
-            $chap_num = mysqli_real_escape_string($conn, $_POST['chapter_number']);
-            $title    = mysqli_real_escape_string($conn, $_POST['title']);
+            $chap_num = trim($_POST['chapter_number']);
+            $title    = trim($_POST['title']);
 
             if (empty($chap_num)) throw new Exception('Nomor chapter wajib diisi!');
 
-            // Cek Duplikat
-            $cek = mysqli_query($conn, "SELECT id FROM chapters WHERE comic_id=$comic_id AND chapter_number='$chap_num'");
-            if (mysqli_num_rows($cek) > 0) throw new Exception('Nomor chapter ini sudah ada!');
+            // Cek Duplikat menggunakan Prepared Statement
+            $stmt_cek = mysqli_prepare($conn, "SELECT id FROM chapters WHERE comic_id = ? AND chapter_number = ?");
+            mysqli_stmt_bind_param($stmt_cek, "is", $comic_id, $chap_num);
+            mysqli_stmt_execute($stmt_cek);
+            mysqli_stmt_store_result($stmt_cek);
+            if (mysqli_stmt_num_rows($stmt_cek) > 0) throw new Exception('Nomor chapter ini sudah ada!');
+            mysqli_stmt_close($stmt_cek);
 
-            $q = "INSERT INTO chapters (comic_id, chapter_number, title) VALUES ($comic_id, '$chap_num', '$title')";
-            if (mysqli_query($conn, $q)) {
+            // Insert Chapter menggunakan Prepared Statement
+            $stmt_ins = mysqli_prepare($conn, "INSERT INTO chapters (comic_id, chapter_number, title) VALUES (?, ?, ?)");
+            mysqli_stmt_bind_param($stmt_ins, "iss", $comic_id, $chap_num, $title);
+            
+            if (mysqli_stmt_execute($stmt_ins)) {
                 echo json_encode(['success' => true, 'chapter_id' => mysqli_insert_id($conn)]);
             } else {
-                throw new Exception('Database Error: ' . mysqli_error($conn));
+                throw new Exception('Database Error');
             }
+            mysqli_stmt_close($stmt_ins);
             exit;
         }
 
-        // B. Upload ke ImgBB
+        // B. Upload ke ImgBB (Gambar Satuan atau URL)
         if ($_POST['ajax_action'] === 'upload_image') {
             $chapter_id = intval($_POST['chapter_id']);
             $order      = intval($_POST['order']);
             $image_data = null; 
 
-            // Cek File atau URL
             if (!empty($_FILES['file']['tmp_name'])) {
-                if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) throw new Exception('Upload Error: ' . $_FILES['file']['error']);
+                if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) throw new Exception('Upload Error');
                 $image_data = base64_encode(file_get_contents($_FILES['file']['tmp_name']));
             } elseif (!empty($_POST['url'])) {
                 $image_data = $_POST['url'];
@@ -61,10 +68,8 @@ if (isset($_POST['ajax_action'])) {
             $q_set = mysqli_query($conn, "SELECT setting_value FROM settings WHERE setting_key = 'imgbb_api_keys'");
             $row = mysqli_fetch_assoc($q_set);
             $api_keys = $row ? json_decode($row['setting_value'], true) : [];
+            if (empty($api_keys)) throw new Exception('API Key ImgBB belum diatur!');
             
-            if (empty($api_keys)) throw new Exception('API Key ImgBB belum diatur di Settings!');
-            
-            // Pilih 1 key acak
             $apiKey = $api_keys[array_rand($api_keys)];
 
             // CURL ke ImgBB
@@ -81,14 +86,88 @@ if (isset($_POST['ajax_action'])) {
 
             if (isset($json['data']['url'])) {
                 $final_url = $json['data']['url'];
-                $q_ins = "INSERT INTO chapter_images (chapter_id, image_path, display_order) VALUES ($chapter_id, '$final_url', $order)";
-                if (mysqli_query($conn, $q_ins)) {
+                
+                // Insert Gambar menggunakan Prepared Statement
+                $stmt_img = mysqli_prepare($conn, "INSERT INTO chapter_images (chapter_id, image_path, display_order) VALUES (?, ?, ?)");
+                mysqli_stmt_bind_param($stmt_img, "isi", $chapter_id, $final_url, $order);
+                
+                if (mysqli_stmt_execute($stmt_img)) {
                     echo json_encode(['success' => true, 'url' => $final_url]);
                 } else {
                     throw new Exception('DB Insert Gagal');
                 }
+                mysqli_stmt_close($stmt_img);
             } else {
                 throw new Exception($json['error']['message'] ?? 'Gagal upload ke ImgBB');
+            }
+            exit;
+        }
+
+        // C. PROSES UPLOAD FILE ZIP
+        if ($_POST['ajax_action'] === 'process_zip') {
+            $chapter_id = intval($_POST['chapter_id']);
+            
+            if (empty($_FILES['zip_file']['tmp_name'])) throw new Exception('File ZIP tidak ditemukan');
+            
+            $zip_path = $_FILES['zip_file']['tmp_name'];
+            $zip = new ZipArchive;
+            
+            if ($zip->open($zip_path) === TRUE) {
+                $extract_path = '../uploads/temp/' . uniqid();
+                if (!is_dir($extract_path)) mkdir($extract_path, 0777, true);
+                
+                $zip->extractTo($extract_path);
+                $zip->close();
+                
+                // Ambil API Keys
+                $q_set = mysqli_query($conn, "SELECT setting_value FROM settings WHERE setting_key = 'imgbb_api_keys'");
+                $row = mysqli_fetch_assoc($q_set);
+                $api_keys = $row ? json_decode($row['setting_value'], true) : [];
+                if (empty($api_keys)) throw new Exception('API Key ImgBB belum diatur!');
+                
+                // Urutkan gambar
+                $files = scandir($extract_path);
+                $images = [];
+                foreach ($files as $file) {
+                    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                    if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                        $images[] = $file;
+                    }
+                }
+                natsort($images); // Urutkan 1, 2, 10 secara benar
+                
+                $success_count = 0;
+                $display_order = 1;
+                $stmt_img = mysqli_prepare($conn, "INSERT INTO chapter_images (chapter_id, image_path, display_order) VALUES (?, ?, ?)");
+                
+                foreach ($images as $img_file) {
+                    $img_path = $extract_path . '/' . $img_file;
+                    $image_data = base64_encode(file_get_contents($img_path));
+                    $apiKey = $api_keys[array_rand($api_keys)];
+                    
+                    $ch = curl_init();
+                    curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload');
+                    curl_setopt($ch, CURLOPT_POST, 1);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, ['key' => $apiKey, 'image' => $image_data]);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    $result = curl_exec($ch);
+                    curl_close($ch);
+                    
+                    $json = json_decode($result, true);
+                    if (isset($json['data']['url'])) {
+                        $final_url = $json['data']['url'];
+                        mysqli_stmt_bind_param($stmt_img, "isi", $chapter_id, $final_url, $display_order);
+                        mysqli_stmt_execute($stmt_img);
+                        $success_count++;
+                        $display_order++;
+                    }
+                    unlink($img_path);
+                }
+                rmdir($extract_path);
+                echo json_encode(['success' => true, 'count' => $success_count]);
+            } else {
+                throw new Exception('Gagal membuka file ZIP');
             }
             exit;
         }
@@ -177,14 +256,15 @@ if (!$comic) {
                         <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg mb-6">
                             <h3 class="font-bold text-lg mb-4 border-b border-gray-700 pb-2 text-white">Pilih Gambar</h3>
                             
-                            <div class="flex gap-4 mb-4">
-                                <button type="button" onclick="switchTab('file')" id="btn-tab-file" class="text-sm font-bold text-indigo-400 border-b-2 border-indigo-400 pb-1 focus:outline-none">Upload File</button>
-                                <button type="button" onclick="switchTab('url')" id="btn-tab-url" class="text-sm font-bold text-gray-500 hover:text-white pb-1 focus:outline-none">Paste URL</button>
+                            <div class="flex gap-4 mb-4 border-b border-gray-700">
+                                <button type="button" onclick="switchTab('file')" id="btn-tab-file" class="text-sm font-bold text-indigo-400 border-b-2 border-indigo-400 pb-2 focus:outline-none">Upload File</button>
+                                <button type="button" onclick="switchTab('url')" id="btn-tab-url" class="text-sm font-bold text-gray-500 hover:text-white pb-2 focus:outline-none">Paste URL</button>
+                                <button type="button" onclick="switchTab('zip')" id="btn-tab-zip" class="text-sm font-bold text-gray-500 hover:text-white pb-2 focus:outline-none">Upload ZIP</button>
                             </div>
 
                             <div id="tab-file" class="block">
                                 <div class="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center hover:border-indigo-500 hover:bg-gray-700/30 transition cursor-pointer relative group">
-                                    <input type="file" id="fileInput" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="updateFileCount(this)">
+                                    <input type="file" id="fileInput" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="updateFileCount(this, 'file-label')">
                                     <div class="text-gray-400 group-hover:text-indigo-400 transition">
                                         <i class="fas fa-cloud-upload-alt text-4xl mb-3"></i>
                                         <p id="file-label" class="text-sm font-medium">Klik untuk memilih gambar</p>
@@ -197,14 +277,25 @@ if (!$comic) {
                                 <textarea id="urlInput" rows="5" class="w-full bg-gray-900 border border-gray-600 rounded p-3 text-sm text-indigo-300 font-mono focus:border-indigo-500 outline-none" placeholder="https://site.com/img1.jpg&#10;https://site.com/img2.jpg"></textarea>
                                 <p class="text-xs text-gray-500 mt-2">Masukkan satu link per baris.</p>
                             </div>
+
+                            <div id="tab-zip" class="hidden">
+                                <div class="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center hover:border-indigo-500 hover:bg-gray-700/30 transition cursor-pointer relative group">
+                                    <input type="file" id="zipInput" accept=".zip" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="updateFileCount(this, 'zip-label', true)">
+                                    <div class="text-gray-400 group-hover:text-indigo-400 transition">
+                                        <i class="fas fa-file-archive text-4xl mb-3 text-yellow-500"></i>
+                                        <p id="zip-label" class="text-sm font-medium">Klik untuk memilih file .ZIP</p>
+                                        <p class="text-xs text-gray-500 mt-1">Pastikan gambar langsung ada di dalam ZIP, bukan di dalam folder</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div id="progressArea" class="hidden bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg mb-6">
                             <h3 class="font-bold text-white mb-2" id="progressTitle">Sedang Mengupload...</h3>
-                            <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden">
+                            <div class="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden" id="barContainer">
                                 <div id="progressBar" class="bg-indigo-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
                             </div>
-                            <p class="text-xs text-gray-400" id="progressText">0 / 0 Gambar berhasil</p>
+                            <p class="text-xs text-gray-400" id="progressText">Memulai...</p>
                             <div id="errorLog" class="mt-4 hidden p-3 bg-red-900/20 border border-red-500/50 rounded text-xs text-red-300 max-h-32 overflow-y-auto"></div>
                         </div>
 
@@ -220,13 +311,13 @@ if (!$comic) {
 
     <script>
         const comicId = <?= $comic['id'] ?>;
-        // Redirect ke halaman detail komik (URL Standard)
         const redirectUrl = "../comic.php?slug=<?= $comic['slug'] ?>"; 
 
         let filesQueue = [];
         let totalFiles = 0;
         let processed = 0;
         let successCount = 0;
+        let currentTab = 'file';
 
         function toggleSidebar() {
             const sb = document.getElementById('adminSidebar');
@@ -236,45 +327,47 @@ if (!$comic) {
         }
 
         function switchTab(tab) {
+            currentTab = tab;
             document.getElementById('tab-file').className = tab === 'file' ? 'block' : 'hidden';
             document.getElementById('tab-url').className = tab === 'url' ? 'block' : 'hidden';
+            document.getElementById('tab-zip').className = tab === 'zip' ? 'block' : 'hidden';
             
             const btnFile = document.getElementById('btn-tab-file');
             const btnUrl = document.getElementById('btn-tab-url');
+            const btnZip = document.getElementById('btn-tab-zip');
             
-            if(tab === 'file') {
-                btnFile.className = 'text-sm font-bold text-indigo-400 border-b-2 border-indigo-400 pb-1 focus:outline-none';
-                btnUrl.className = 'text-sm font-bold text-gray-500 hover:text-white pb-1 focus:outline-none';
+            // Reset style
+            [btnFile, btnUrl, btnZip].forEach(btn => {
+                btn.className = 'text-sm font-bold text-gray-500 hover:text-white pb-2 focus:outline-none';
+            });
+
+            // Aktifkan style
+            document.getElementById(`btn-tab-${tab}`).className = 'text-sm font-bold text-indigo-400 border-b-2 border-indigo-400 pb-2 focus:outline-none';
+        }
+
+        function updateFileCount(input, labelId, isZip = false) {
+            const label = document.getElementById(labelId);
+            if (input.files.length > 0) {
+                if (isZip) {
+                    label.innerHTML = `<span class="text-yellow-400 font-bold">${input.files[0].name} Terpilih</span>`;
+                } else {
+                    label.innerHTML = `<span class="text-green-400 font-bold">${input.files.length} Gambar Dipilih</span>`;
+                }
             } else {
-                btnFile.className = 'text-sm font-bold text-gray-500 hover:text-white pb-1 focus:outline-none';
-                btnUrl.className = 'text-sm font-bold text-indigo-400 border-b-2 border-indigo-400 pb-1 focus:outline-none';
+                label.innerText = isZip ? "Klik untuk memilih file .ZIP" : "Klik untuk memilih gambar";
             }
         }
 
-        function updateFileCount(input) {
-            const label = document.getElementById('file-label');
-            if (input.files.length > 0) label.innerHTML = `<span class="text-green-400 font-bold">${input.files.length} Gambar Dipilih</span>`;
-            else label.innerText = "Klik untuk memilih gambar";
-        }
-
-        // --- FUNGSI UPLOAD UTAMA ---
         async function startUpload() {
             const chapNum = document.getElementById('chapNum').value;
             const chapTitle = document.getElementById('chapTitle').value;
-            const fileInput = document.getElementById('fileInput');
-            const urlInput = document.getElementById('urlInput');
 
             if (!chapNum) return alert("Nomor Chapter wajib diisi!");
 
-            filesQueue = [];
-            if (!document.getElementById('tab-file').classList.contains('hidden')) {
-                for (let f of fileInput.files) filesQueue.push({type: 'file', data: f});
-            } else {
-                const urls = urlInput.value.split('\n').map(u => u.trim()).filter(u => u);
-                for (let u of urls) filesQueue.push({type: 'url', data: u});
-            }
-
-            if (filesQueue.length === 0) return alert("Pilih minimal satu gambar atau masukkan URL!");
+            // Validasi input berdasarkan tab aktif
+            if (currentTab === 'file' && document.getElementById('fileInput').files.length === 0) return alert("Pilih minimal satu gambar!");
+            if (currentTab === 'url' && !document.getElementById('urlInput').value.trim()) return alert("Masukkan minimal satu URL!");
+            if (currentTab === 'zip' && document.getElementById('zipInput').files.length === 0) return alert("Pilih file ZIP!");
 
             const btn = document.getElementById('btnUpload');
             btn.disabled = true;
@@ -284,11 +377,6 @@ if (!$comic) {
             document.getElementById('progressArea').classList.remove('hidden');
             document.getElementById('errorLog').classList.add('hidden');
             document.getElementById('errorLog').innerHTML = '';
-            
-            totalFiles = filesQueue.length;
-            processed = 0;
-            successCount = 0;
-            updateProgress();
 
             try {
                 // 1. Buat Chapter
@@ -308,9 +396,46 @@ if (!$comic) {
                 
                 const chapterId = json.chapter_id;
                 
-                // 2. Upload Gambar Loop
-                for (let i = 0; i < totalFiles; i++) {
-                    await uploadSingleImage(chapterId, filesQueue[i], i + 1);
+                // 2. Upload Gambar / ZIP
+                if (currentTab === 'zip') {
+                    // LOGIKA UPLOAD ZIP
+                    document.getElementById('barContainer').classList.add('hidden'); // Sembunyikan progress bar
+                    document.getElementById('progressText').innerHTML = `<i class="fas fa-cog fa-spin text-indigo-400 mr-2"></i> Server sedang mengekstrak dan mengirim gambar ke ImgBB. Mohon tunggu...`;
+                    
+                    const zipData = new FormData();
+                    zipData.append('ajax_action', 'process_zip');
+                    zipData.append('chapter_id', chapterId);
+                    zipData.append('zip_file', document.getElementById('zipInput').files[0]);
+
+                    const zipRes = await fetch('add_chapter.php', { method: 'POST', body: zipData });
+                    const zipText = await zipRes.text();
+                    let zipJson = JSON.parse(zipText);
+
+                    if (zipJson.success) {
+                        successCount = zipJson.count;
+                    } else {
+                        throw new Error(zipJson.msg);
+                    }
+
+                } else {
+                    // LOGIKA UPLOAD SATUAN (FILE / URL)
+                    filesQueue = [];
+                    if (currentTab === 'file') {
+                        for (let f of document.getElementById('fileInput').files) filesQueue.push({type: 'file', data: f});
+                    } else {
+                        const urls = document.getElementById('urlInput').value.split('\n').map(u => u.trim()).filter(u => u);
+                        for (let u of urls) filesQueue.push({type: 'url', data: u});
+                    }
+
+                    totalFiles = filesQueue.length;
+                    processed = 0;
+                    successCount = 0;
+                    document.getElementById('barContainer').classList.remove('hidden');
+                    updateProgress();
+
+                    for (let i = 0; i < totalFiles; i++) {
+                        await uploadSingleImage(chapterId, filesQueue[i], i + 1);
+                    }
                 }
 
                 btn.innerHTML = '<i class="fas fa-check"></i> Selesai!';

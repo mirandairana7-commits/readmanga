@@ -2,8 +2,8 @@
 require_once 'config/database.php';
 
 // === PENGAMANAN ===
-// Hapus tanda // di bawah ini jika ingin MENGAKTIFKAN registrasi sementara
-die("<div style='color:white;background:#111;padding:20px;text-align:center;'>Registrasi Publik Dinonaktifkan oleh Administrator.</div>");
+// Ganti die() menjadi komentar jika ingin mengizinkan registrasi
+die("<div style='color:white;background:#111;padding:20px;text-align:center;font-family:sans-serif;'>Registrasi Publik Dinonaktifkan oleh Administrator.</div>");
 // ==================
 
 $error = '';
@@ -19,23 +19,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($password !== $confirm_password) {
         $error = "Konfirmasi password tidak cocok!";
     } else {
-        $safe_user = mysqli_real_escape_string($conn, $username);
-        $check = mysqli_query($conn, "SELECT id FROM users WHERE username = '$safe_user'");
+        // [UPGRADE KEAMANAN]: Cek duplikat dengan Prepared Statement
+        $stmt_check = mysqli_prepare($conn, "SELECT id FROM users WHERE username = ?");
+        mysqli_stmt_bind_param($stmt_check, "s", $username);
+        mysqli_stmt_execute($stmt_check);
+        mysqli_stmt_store_result($stmt_check);
         
-        if (mysqli_num_rows($check) > 0) {
+        if (mysqli_stmt_num_rows($stmt_check) > 0) {
             $error = "Username sudah dipakai!";
         } else {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            $role = 'admin'; // Role otomatis admin
             
-            // ROLE OTOMATIS JADI 'ADMIN' (Karena ini private server)
-            $query = "INSERT INTO users (username, password, role) VALUES ('$safe_user', '$hashed_password', 'admin')";
+            // [UPGRADE KEAMANAN]: Insert user dengan Prepared Statement
+            $stmt_ins = mysqli_prepare($conn, "INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
+            mysqli_stmt_bind_param($stmt_ins, "sss", $username, $hashed_password, $role);
             
-            if (mysqli_query($conn, $query)) {
-                $success = "Admin berhasil dibuat! Silakan <a href='login.php' class='text-indigo-400 font-bold'>Login disini</a>.";
+            if (mysqli_stmt_execute($stmt_ins)) {
+                $success = "Admin berhasil dibuat! Silakan <a href='login.php' class='underline'>login di sini</a>.";
             } else {
-                $error = "Gagal mendaftar: " . mysqli_error($conn);
+                $error = "Terjadi kesalahan sistem.";
             }
+            mysqli_stmt_close($stmt_ins);
         }
+        mysqli_stmt_close($stmt_check);
     }
 }
 ?>
@@ -45,26 +52,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buat Admin - Readmanga</title>
+    <title>Buat Akun Admin - Readmanga</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
-    <div class="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-xl shadow-2xl border border-gray-700">
-        <div class="text-center">
-            <h1 class="text-2xl font-bold text-indigo-500">Registrasi Admin</h1>
-            <p class="text-gray-400 text-sm mt-1">Buat akun administrator baru</p>
-        </div>
-
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700">
+        <h2 class="text-2xl font-bold text-center mb-6">Registrasi Admin</h2>
+        
         <?php if ($error): ?>
-            <div class="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded text-sm text-center">
-                <?= $error ?>
-            </div>
+            <div class="bg-red-600/20 border border-red-500 text-red-500 p-3 rounded mb-4 text-sm"><?= $error ?></div>
         <?php endif; ?>
-
+        
         <?php if ($success): ?>
-            <div class="bg-green-500/10 border border-green-500 text-green-500 p-3 rounded text-sm text-center">
-                <?= $success ?>
-            </div>
+            <div class="bg-green-600/20 border border-green-500 text-green-500 p-3 rounded mb-4 text-sm"><?= $success ?></div>
         <?php endif; ?>
 
         <form method="POST" class="space-y-4">
@@ -89,8 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </button>
         </form>
 
-        <p class="text-center text-sm text-gray-400">
-            Sudah punya akun? <a href="login.php" class="text-indigo-400 hover:underline">Login</a>
+        <p class="text-center text-sm text-gray-400 mt-6">
+            Sudah punya akun? <a href="login.php" class="text-indigo-400 hover:text-indigo-300">Login di sini</a>
         </p>
     </div>
 </body>

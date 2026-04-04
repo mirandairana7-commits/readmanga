@@ -26,7 +26,7 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'upload_cover') {
         $q_set = mysqli_query($conn, "SELECT setting_value FROM settings WHERE setting_key = 'imgbb_api_keys'");
         $row_set = mysqli_fetch_assoc($q_set);
         $keys = $row_set ? json_decode($row_set['setting_value'], true) : [];
-        if (empty($keys)) throw new Exception("API Key ImgBB belum diatur di Pengaturan.");
+        if (empty($keys)) throw new Exception("API Key ImgBB belum diatur.");
         
         $apiKey = $keys[array_rand($keys)];
         
@@ -52,60 +52,65 @@ if (isset($_POST['ajax_action']) && $_POST['ajax_action'] === 'upload_cover') {
 }
 // ==========================================
 
-// Ambil Data Komik
-$query = "SELECT * FROM comics WHERE id = $id";
-$result = mysqli_query($conn, $query);
-$comic = mysqli_fetch_assoc($result);
+// [KEAMANAN DITINGKATKAN]: Ambil Data Komik
+$stmt_get = mysqli_prepare($conn, "SELECT * FROM comics WHERE id = ?");
+mysqli_stmt_bind_param($stmt_get, "i", $id);
+mysqli_stmt_execute($stmt_get);
+$comic = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_get));
 
 if (!$comic) die("Komik tidak ditemukan.");
 
 // Proses Update Komik
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['ajax_action'])) {
-    $title = mysqli_real_escape_string($conn, $_POST['title']);
-    $alt_titles = mysqli_real_escape_string($conn, $_POST['alternative_titles']);
-    $description = mysqli_real_escape_string($conn, $_POST['description']);
-    $author = mysqli_real_escape_string($conn, $_POST['author']);
-    $genres = mysqli_real_escape_string($conn, $_POST['genres']);
+    $title = trim($_POST['title']);
+    $alt_titles = trim($_POST['alternative_titles']);
+    $description = trim($_POST['description']);
+    $author = trim($_POST['author']);
+    $genres = trim($_POST['genres']);
     $status = $_POST['status'];
     $type = $_POST['type'];
     $release_year = $_POST['release_year'];
+    $external_link = trim($_POST['external_link']); 
+    $link_label = trim($_POST['link_label']); 
     
-    $external_link = mysqli_real_escape_string($conn, $_POST['external_link']); 
-    $link_label = mysqli_real_escape_string($conn, $_POST['link_label']); 
-    
+    // [KEAMANAN DITINGKATKAN]: UPDATE Data Komik
     $update_query = "UPDATE comics SET 
-                        title = '$title', 
-                        alternative_titles = '$alt_titles',
-                        description = '$description', 
-                        author = '$author', 
-                        genres = '$genres', 
-                        status = '$status', 
-                        type = '$type', 
-                        release_year = '$release_year',
-                        external_link = '$external_link',
-                        link_label = '$link_label' 
-                      WHERE id = $id";
+                        title = ?, alternative_titles = ?, description = ?, 
+                        author = ?, genres = ?, status = ?, type = ?, 
+                        release_year = ?, external_link = ?, link_label = ? 
+                      WHERE id = ?";
+                      
+    $stmt_upd = mysqli_prepare($conn, $update_query);
+    mysqli_stmt_bind_param($stmt_upd, "ssssssssssi", $title, $alt_titles, $description, $author, $genres, $status, $type, $release_year, $external_link, $link_label, $id);
     
-    if (mysqli_query($conn, $update_query)) {
+    if (mysqli_stmt_execute($stmt_upd)) {
         $message = "<div class='bg-green-600 p-3 rounded mb-4 font-bold text-white'><i class='fas fa-check-circle'></i> Data berhasil diperbarui!</div>";
         
-        // Hapus file cover lama di lokal jika Admin mengubah Cover menggunakan URL ImgBB
+        // Hapus file cover lama di lokal jika Admin mengubah Cover
         if (!empty($_POST['fetched_cover_url'])) {
-            $new_cover = mysqli_real_escape_string($conn, $_POST['fetched_cover_url']);
+            $new_cover = trim($_POST['fetched_cover_url']);
             if ($comic['cover_image'] != 'default.jpg' && strpos($comic['cover_image'], 'http') === false && file_exists('../uploads/covers/' . $comic['cover_image'])) {
                 unlink('../uploads/covers/' . $comic['cover_image']);
             }
-            mysqli_query($conn, "UPDATE comics SET cover_image = '$new_cover' WHERE id = $id");
+            // Update nama cover baru di DB
+            $stmt_cov = mysqli_prepare($conn, "UPDATE comics SET cover_image = ? WHERE id = ?");
+            mysqli_stmt_bind_param($stmt_cov, "si", $new_cover, $id);
+            mysqli_stmt_execute($stmt_cov);
         }
         
-        $comic = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM comics WHERE id = $id"));
+        // Segarkan data komik setelah update
+        mysqli_stmt_execute($stmt_get);
+        $comic = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_get));
     } else {
-        $message = "<div class='bg-red-600 p-3 rounded mb-4 text-white'>Gagal update: " . mysqli_error($conn) . "</div>";
+        $message = "<div class='bg-red-600 p-3 rounded mb-4 text-white'>Gagal update data.</div>";
     }
 }
 
-// Ambil Daftar Chapter
-$chapters_q = mysqli_query($conn, "SELECT * FROM chapters WHERE comic_id = $id ORDER BY chapter_number DESC");
+// [KEAMANAN DITINGKATKAN]: Ambil Daftar Chapter
+$stmt_chap = mysqli_prepare($conn, "SELECT * FROM chapters WHERE comic_id = ? ORDER BY chapter_number DESC");
+mysqli_stmt_bind_param($stmt_chap, "i", $id);
+mysqli_stmt_execute($stmt_chap);
+$chapters_q = mysqli_stmt_get_result($stmt_chap);
 ?>
 
 <!DOCTYPE html>

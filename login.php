@@ -8,7 +8,6 @@ if (isset($_SESSION['user_id'])) {
     if ($_SESSION['role'] === 'admin') {
         header("Location: " . $base_url . "/admin/index.php");
     } else {
-        // Jika user biasa terlanjur login, logoutkan paksa (karena ini web khusus admin)
         session_destroy();
         header("Location: " . $base_url . "/login.php");
     }
@@ -18,30 +17,31 @@ if (isset($_SESSION['user_id'])) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = mysqli_real_escape_string($conn, $_POST['username']);
+    $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    $query = "SELECT * FROM users WHERE username = '$username' LIMIT 1";
-    $result = mysqli_query($conn, $query);
+    // [UPGRADE KEAMANAN]: Menggunakan Prepared Statement
+    $stmt = mysqli_prepare($conn, "SELECT id, username, password, role FROM users WHERE username = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt, "s", $username); // "s" = string
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
     $user = mysqli_fetch_assoc($result);
 
     if ($user && password_verify($password, $user['password'])) {
-        // --- LOGIKA KHUSUS ADMIN ---
         if ($user['role'] !== 'admin') {
             $error = "Akses Ditolak! Website ini khusus Administrator.";
         } else {
-            // Set Session
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
             
-            // Redirect ke Panel Admin
             header("Location: " . $base_url . "/admin/index.php");
             exit();
         }
     } else {
-        $error = "Username atau password salah!";
+        $error = "Username atau Password salah!";
     }
+    mysqli_stmt_close($stmt);
 }
 ?>
 
@@ -50,27 +50,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Admin - Readmanga</title>
+    <title>Admin Login - Readmanga</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-[#0a0a0a] text-gray-200 font-sans antialiased min-h-screen flex items-center justify-center p-4">
-
+<body class="bg-[#0f0f0f] text-white flex items-center justify-center min-h-screen p-4 font-sans">
     <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-2">Readmanga</h1>
-            <p class="text-gray-500 text-sm">Restricted Area: Administrator Only</p>
-        </div>
+        <div class="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-2xl shadow-2xl p-8">
+            <div class="text-center mb-8">
+                <div class="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/20 rotate-3 transition hover:rotate-0 duration-300">
+                    <i class="fas fa-user-shield text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold tracking-tight">Selamat Datang</h2>
+                <p class="text-gray-500 text-sm mt-1">Silakan masuk ke panel kontrol</p>
+            </div>
 
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl shadow-black">
-            
             <?php if ($error): ?>
-                <div class="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg mb-6 text-sm text-center font-bold">
-                    <i class="fas fa-exclamation-circle mr-2"></i> <?= $error ?>
+                <div class="bg-red-500/10 border border-red-500/50 text-red-500 p-4 rounded-xl mb-6 text-sm flex items-center gap-3">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <?= $error ?>
                 </div>
             <?php endif; ?>
 
-            <form method="POST" class="space-y-6">
+            <form method="POST" class="space-y-5">
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">Username</label>
                     <div class="relative">
@@ -95,10 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
         </div>
         
-        <div class="text-center mt-8 text-xs text-gray-600">
-            &copy; 2026 Readmanga System.
+        <div class="text-center mt-8">
+            <a href="index.php" class="text-gray-500 hover:text-indigo-400 text-sm transition font-medium">
+                <i class="fas fa-arrow-left mr-2"></i> Kembali ke Beranda
+            </a>
         </div>
     </div>
-
 </body>
 </html>

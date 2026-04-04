@@ -4,7 +4,7 @@ ob_start();
 session_start();
 require_once '../config/database.php';
 
-// Cek Admin (Gunakan Base URL untuk redirect)
+// Cek Admin
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     if (isset($_POST['ajax_action'])) {
         ob_clean();
@@ -20,15 +20,17 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 // BAGIAN 1: API AJAX HANDLER
 // ==========================================
 if (isset($_POST['ajax_action'])) {
-    ob_clean(); // Bersihkan buffer sebelum kirim JSON
+    ob_clean(); 
     header('Content-Type: application/json');
 
     try {
-        // A. Hapus Gambar
+        // [KEAMANAN DITINGKATKAN]: A. Hapus Gambar
         if ($_POST['ajax_action'] === 'delete_image') {
             $img_id = intval($_POST['image_id']);
-            // Hapus dari database saja (ImgBB tidak menyediakan API delete via API key standar dengan mudah)
-            if (mysqli_query($conn, "DELETE FROM chapter_images WHERE id = $img_id")) {
+            $stmt_del = mysqli_prepare($conn, "DELETE FROM chapter_images WHERE id = ?");
+            mysqli_stmt_bind_param($stmt_del, "i", $img_id);
+            
+            if (mysqli_stmt_execute($stmt_del)) {
                 echo json_encode(['success' => true]);
             } else {
                 throw new Exception("Gagal menghapus data dari database.");
@@ -36,13 +38,16 @@ if (isset($_POST['ajax_action'])) {
             exit;
         }
 
-        // B. Update Info Chapter
+        // [KEAMANAN DITINGKATKAN]: B. Update Info Chapter
         if ($_POST['ajax_action'] === 'update_info') {
             $id = intval($_POST['chapter_id']);
-            $num = mysqli_real_escape_string($conn, $_POST['number']);
-            $title = mysqli_real_escape_string($conn, $_POST['title']);
+            $num = trim($_POST['number']);
+            $title = trim($_POST['title']);
             
-            if (mysqli_query($conn, "UPDATE chapters SET chapter_number='$num', title='$title' WHERE id=$id")) {
+            $stmt_upd = mysqli_prepare($conn, "UPDATE chapters SET chapter_number=?, title=? WHERE id=?");
+            mysqli_stmt_bind_param($stmt_upd, "ssi", $num, $title, $id);
+            
+            if (mysqli_stmt_execute($stmt_upd)) {
                 echo json_encode(['success' => true]);
             } else {
                 throw new Exception("Gagal mengupdate informasi chapter.");
@@ -50,18 +55,21 @@ if (isset($_POST['ajax_action'])) {
             exit;
         }
 
-        // C. Upload Gambar Baru ke ImgBB
+        // [KEAMANAN DITINGKATKAN]: C. Upload Gambar Baru ke ImgBB
         if ($_POST['ajax_action'] === 'upload_image') {
             $chapter_id = intval($_POST['chapter_id']);
             
             // Ambil urutan gambar terakhir
-            $res = mysqli_query($conn, "SELECT MAX(display_order) as max_o FROM chapter_images WHERE chapter_id=$chapter_id");
+            $stmt_max = mysqli_prepare($conn, "SELECT MAX(display_order) as max_o FROM chapter_images WHERE chapter_id=?");
+            mysqli_stmt_bind_param($stmt_max, "i", $chapter_id);
+            mysqli_stmt_execute($stmt_max);
+            $res = mysqli_stmt_get_result($stmt_max);
             $row = mysqli_fetch_assoc($res);
             $order = ($row['max_o'] ?? 0) + 1;
 
             $image_data = null;
             if (!empty($_FILES['file']['tmp_name'])) {
-                if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) throw new Exception("Error Upload File: " . $_FILES['file']['error']);
+                if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) throw new Exception("Error Upload File.");
                 $image_data = base64_encode(file_get_contents($_FILES['file']['tmp_name']));
             } elseif (!empty($_POST['url'])) {
                 $image_data = $_POST['url'];
@@ -69,36 +77,32 @@ if (isset($_POST['ajax_action'])) {
 
             if (!$image_data) throw new Exception("Data gambar kosong/tidak valid.");
 
-            // Ambil API Key
             $q_set = mysqli_query($conn, "SELECT setting_value FROM settings WHERE setting_key = 'imgbb_api_keys'");
             $row_set = mysqli_fetch_assoc($q_set);
             $keys = $row_set ? json_decode($row_set['setting_value'], true) : [];
-            
-            if (empty($keys)) throw new Exception("API Key ImgBB belum diatur di Settings.");
-            
-            $apiKey = $keys[array_rand($keys)]; // Pilih key acak
+            if (empty($keys)) throw new Exception("API Key ImgBB belum diatur.");
+            $apiKey = $keys[array_rand($keys)];
 
-            // CURL Request
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload');
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, ['key' => $apiKey, 'image' => $image_data]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Penting untuk hosting gratis
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-            
             $result = curl_exec($ch);
-            
-            if(curl_errno($ch)){
-                throw new Exception("CURL Error: " . curl_error($ch));
-            }
             curl_close($ch);
 
             $json = json_decode($result, true);
 
             if (isset($json['data']['url'])) {
                 $url = $json['data']['url'];
-                mysqli_query($conn, "INSERT INTO chapter_images (chapter_id, image_path, display_order) VALUES ($chapter_id, '$url', $order)");
+                
+                // Simpan Gambar Baru ke Database
+                $stmt_ins = mysqli_prepare($conn, "INSERT INTO chapter_images (chapter_id, image_path, display_order) VALUES (?, ?, ?)");
+                mysqli_stmt_bind_param($stmt_ins, "isi", $chapter_id, $url, $order);
+                mysqli_stmt_execute($stmt_ins);
+                
                 echo json_encode(['success' => true, 'url' => $url, 'id' => mysqli_insert_id($conn), 'order' => $order]);
             } else {
                 throw new Exception($json['error']['message'] ?? "Gagal upload ke ImgBB.");
@@ -116,12 +120,20 @@ if (isset($_POST['ajax_action'])) {
 // BAGIAN 2: TAMPILAN HALAMAN
 // ==========================================
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-$query = "SELECT c.*, cm.title as comic_title, cm.id as comic_id FROM chapters c JOIN comics cm ON c.comic_id = cm.id WHERE c.id = $id";
-$chapter = mysqli_fetch_assoc(mysqli_query($conn, $query));
+
+// [KEAMANAN DITINGKATKAN]: Ambil info Chapter
+$stmt_chap = mysqli_prepare($conn, "SELECT c.*, cm.title as comic_title, cm.id as comic_id FROM chapters c JOIN comics cm ON c.comic_id = cm.id WHERE c.id = ?");
+mysqli_stmt_bind_param($stmt_chap, "i", $id);
+mysqli_stmt_execute($stmt_chap);
+$chapter = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_chap));
 
 if (!$chapter) die("Chapter tidak ditemukan.");
 
-$images = mysqli_query($conn, "SELECT * FROM chapter_images WHERE chapter_id = $id ORDER BY display_order ASC");
+// [KEAMANAN DITINGKATKAN]: Ambil Gambar Chapter
+$stmt_img = mysqli_prepare($conn, "SELECT * FROM chapter_images WHERE chapter_id = ? ORDER BY display_order ASC");
+mysqli_stmt_bind_param($stmt_img, "i", $id);
+mysqli_stmt_execute($stmt_img);
+$images = mysqli_stmt_get_result($stmt_img);
 ?>
 
 <!DOCTYPE html>
