@@ -17,17 +17,18 @@ if (!isset($base_url)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <base href="<?= $base_url ?>/">
+    <base href="<?= $base_url ?>">
 
     <?php
     // Siapkan nilai default jika halaman bukan halaman detail komik
     $meta_title = isset($og_title) ? $og_title : "Readmanga - Baca Manga Online";
     $meta_desc = isset($og_desc) ? $og_desc : "Tempat baca manga, manhwa, dan manhua bahasa Indonesia terbaik dan terlengkap.";
-    $meta_image = isset($og_image) ? $og_image : $base_url . "/assets/default-cover.jpg";
+    $meta_image = isset($og_image) ? $og_image : "https://i.ibb.co.com/qYP6kYDy/default-cove.jpg";
     $meta_url = isset($og_url) ? $og_url : $base_url;
     ?>
     
     <title><?= $meta_title ?></title>
+    <link rel="icon" href="<?= $base_url ?>/assets/favicon.png" type="image/png">
 
     <meta name="description" content="<?= $meta_desc ?>">
 
@@ -76,7 +77,7 @@ if (!isset($base_url)) {
                     <div id="desktopSearchResults" class="hidden absolute top-full left-0 right-0 mt-2 bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden z-50 w-full max-h-96 overflow-y-auto custom-scrollbar"></div>
                 </div>
 
-                <a href="search.php?filter=open" class="text-gray-300 hover:text-white px-3 py-2 rounded-md transition" title="Filter"><i class="fas fa-sliders-h"></i></a>
+                <a href="search?filter=open" class="text-gray-300 hover:text-white px-3 py-2 rounded-md transition" title="Filter"><i class="fas fa-sliders-h"></i></a>
 
                 <?php if (isLoggedIn()): ?>
                     <div class="flex items-center gap-3 border-l border-gray-700 pl-4">
@@ -127,7 +128,7 @@ if (!isset($base_url)) {
 
         <div class="flex flex-col space-y-4">
             <a href="<?= $base_url ?>" class="flex items-center text-gray-300 hover:text-indigo-400 transition"><i class="fas fa-home w-6 mr-2"></i> Beranda</a>
-            <a href="search.php?filter=open" class="flex items-center text-gray-300 hover:text-indigo-400 transition"><i class="fas fa-sliders-h w-6 mr-2"></i> Filter Pencarian</a>
+            <a href="search?filter=open" class="flex items-center text-gray-300 hover:text-indigo-400 transition"><i class="fas fa-sliders-h w-6 mr-2"></i> Filter Pencarian</a>
             
             <div class="border-t border-gray-800 my-2 pt-2"></div>
 
