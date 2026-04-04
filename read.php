@@ -57,6 +57,7 @@ $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comi
         $formatted_chapter = formatChapterNumber($chapter['chapter_number']);
     ?>
     <title>Chapter <?= $formatted_chapter ?> - <?= htmlspecialchars($chapter['comic_title']) ?></title>
+    <link rel="icon" href="<?= $base_url ?>/assets/favicon.png" type="image/png">
     
     <meta property="og:type" content="article">
     <meta property="og:url" content="<?= $base_url ?>/baca/<?= $comic_slug ?>/<?= $chapter_num ?>">
