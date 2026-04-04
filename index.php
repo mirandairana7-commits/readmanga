@@ -65,7 +65,7 @@ $total_pages = ceil($total_data / $limit);
                     }
                 ?>
 
-                <a href="comic.php?slug=<?= $comic['slug'] ?>" class="group block bg-gray-800 rounded-xl overflow-hidden hover:ring-2 hover:ring-indigo-500 transition relative shadow-lg hover:shadow-indigo-500/20 transform hover:-translate-y-1 duration-300">
+                <a href="komik/<?= $comic['slug'] ?>" class="group block bg-gray-800 rounded-xl overflow-hidden hover:ring-2 hover:ring-indigo-500 transition relative shadow-lg hover:shadow-indigo-500/20 transform hover:-translate-y-1 duration-300">
                     
                     <div class="aspect-[3/4] w-full overflow-hidden bg-gray-700 relative">
                         <span class="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-[10px] px-2 py-1 rounded text-white font-bold z-10 border border-white/10 uppercase tracking-wider">

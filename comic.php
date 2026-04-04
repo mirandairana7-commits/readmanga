@@ -1,20 +1,34 @@
 <?php
 require_once 'config/database.php';
 require_once 'includes/auth.php'; // Opsional
-require_once 'includes/header.php';
 
-// Ambil Slug (Query String)
+// Ambil Slug DULU sebelum memanggil header
 $slug = isset($_GET['slug']) ? mysqli_real_escape_string($conn, $_GET['slug']) : '';
-
 $query = "SELECT * FROM comics WHERE slug = '$slug' LIMIT 1";
 $result = mysqli_query($conn, $query);
 $comic = mysqli_fetch_assoc($result);
 
 if (!$comic) {
+    require_once 'includes/header.php';
     echo "<div class='text-white text-center py-20'>Komik tidak ditemukan.</div>";
     require_once 'includes/footer.php';
     exit();
 }
+
+// Logika Path Cover untuk Thumbnail WhatsApp
+$coverUrl = $comic['cover_image'];
+if (strpos($coverUrl, 'http') !== 0) {
+    $coverUrl = $base_url . "/uploads/covers/" . $coverUrl;
+}
+
+// Set Variabel untuk OG Meta Tags (Dibaca oleh header.php)
+$og_title = htmlspecialchars($comic['title']) . " - Readmanga";
+$og_desc = htmlspecialchars(substr($comic['description'], 0, 150)) . "..."; 
+$og_image = $coverUrl;
+$og_url = $base_url . "/komik/" . $comic['slug'];
+
+// BARU PANGGIL HEADER DI SINI
+require_once 'includes/header.php';
 
 $chapter_query = "SELECT * FROM chapters WHERE comic_id = {$comic['id']} ORDER BY chapter_number DESC";
 $chapters = mysqli_query($conn, $chapter_query);
@@ -181,7 +195,7 @@ if (strpos($coverUrl, 'http') !== 0) {
                                     
                                     <div class="chapter-item group flex items-center justify-between p-3 hover:bg-gray-800 transition cursor-pointer" data-number="<?= $chap['chapter_number'] ?>">
                                         
-                                        <a href="read.php?slug=<?= $comic['slug'] ?>&chapter=<?= $chap['chapter_number'] ?>" class="flex-grow flex items-center gap-3">
+                                        <a href="baca/<?= $comic['slug'] ?>/<?= $chap['chapter_number'] ?>" class="flex-grow flex items-center gap-3">
                                             
                                             <div class="bg-gray-800 group-hover:bg-indigo-600 border border-gray-700 group-hover:border-indigo-500 text-gray-400 group-hover:text-white px-3 py-2 rounded-md font-bold text-xs sm:text-sm transition duration-300 w-30 text-center flex-shrink-0">
                                                 <?= $chap['title'] ? htmlspecialchars($chap['title']) : 'Chapter ' . formatChapterNumber($chap['chapter_number']) ?>

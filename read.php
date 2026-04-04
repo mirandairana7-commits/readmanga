@@ -8,7 +8,7 @@ $comic_slug = isset($_GET['slug']) ? mysqli_real_escape_string($conn, $_GET['slu
 $chapter_num = isset($_GET['chapter']) ? mysqli_real_escape_string($conn, $_GET['chapter']) : '';
 
 // 2. QUERY MENCARI CHAPTER
-$query = "SELECT c.*, cm.title as comic_title, cm.slug as comic_slug, cm.id as comic_id 
+$query = "SELECT c.*, cm.title as comic_title, cm.slug as comic_slug, cm.id as comic_id, cm.cover_image as comic_cover, cm.description as comic_desc 
           FROM chapters c 
           JOIN comics cm ON c.comic_id = cm.id 
           WHERE cm.slug = '$comic_slug' AND c.chapter_number = '$chapter_num'";
@@ -47,7 +47,23 @@ $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comi
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <base href="<?= $base_url ?>/"> 
-    <title>Chapter <?= $chapter['chapter_number'] ?> - <?= htmlspecialchars($chapter['comic_title']) ?></title>
+    
+    <?php
+        // Logika Cover untuk OG Image Halaman Baca
+        $og_image_read = $chapter['comic_cover'];
+        if (strpos($og_image_read, 'http') !== 0) {
+            $og_image_read = $base_url . "/uploads/covers/" . $og_image_read;
+        }
+        $formatted_chapter = formatChapterNumber($chapter['chapter_number']);
+    ?>
+    <title>Chapter <?= $formatted_chapter ?> - <?= htmlspecialchars($chapter['comic_title']) ?></title>
+    
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="<?= $base_url ?>/baca/<?= $comic_slug ?>/<?= $chapter_num ?>">
+    <meta property="og:title" content="Chapter <?= $formatted_chapter ?> - <?= htmlspecialchars($chapter['comic_title']) ?>">
+    <meta property="og:description" content="Baca chapter terbaru dari <?= htmlspecialchars($chapter['comic_title']) ?> hanya di Readmanga.">
+    <meta property="og:image" content="<?= $og_image_read ?>">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -91,7 +107,7 @@ $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comi
             
             <div class="flex items-center gap-3 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1 border border-white/10">
                 <?php if ($prev_res): ?>
-                    <a href="read.php?slug=<?= $comic_slug ?>&chapter=<?= $prev_res['chapter_number'] ?>" class="text-gray-300 hover:text-white"><i class="fas fa-chevron-left"></i></a>
+                    <a href="baca/<?= $comic_slug ?>/<?= $prev_res['chapter_number'] ?>" class="text-gray-300 hover:text-white"><i class="fas fa-chevron-left"></i></a>
                 <?php else: ?>
                     <span class="text-gray-600"><i class="fas fa-chevron-left"></i></span>
                 <?php endif; ?>
@@ -99,7 +115,7 @@ $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comi
                 <span class="text-xs font-bold text-white">Chapter <?= formatChapterNumber($chapter['chapter_number']) ?></span>
                 
                 <?php if ($next_res): ?>
-                    <a href="read.php?slug=<?= $comic_slug ?>&chapter=<?= $next_res['chapter_number'] ?>" class="text-gray-300 hover:text-white"><i class="fas fa-chevron-right"></i></a>
+                    <a href="baca/<?= $comic_slug ?>/<?= $next_res['chapter_number'] ?>" class="text-gray-300 hover:text-white"><i class="fas fa-chevron-right"></i></a>
                 <?php else: ?>
                     <span class="text-gray-600"><i class="fas fa-chevron-right"></i></span>
                 <?php endif; ?>
@@ -132,13 +148,13 @@ $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comi
         <div class="max-w-[800px] mx-auto px-4 py-10 pb-32 hidden relative z-10" id="bottomNavWebtoon">
             <div class="grid grid-cols-2 gap-4">
                 <?php if ($prev_res): ?>
-                    <a href="read.php?slug=<?= $comic_slug ?>&chapter=<?= $prev_res['chapter_number'] ?>" class="bg-gray-800 text-white py-3 rounded-lg text-center font-bold border border-gray-700 hover:bg-gray-700">Prev</a>
+                    <a href="baca/<?= $comic_slug ?>/<?= $prev_res['chapter_number'] ?>" class="bg-gray-800 text-white py-3 rounded-lg text-center font-bold border border-gray-700 hover:bg-gray-700">Prev</a>
                 <?php else: ?>
                     <div></div>
                 <?php endif; ?>
                 
                 <?php if ($next_res): ?>
-                    <a href="read.php?slug=<?= $comic_slug ?>&chapter=<?= $next_res['chapter_number'] ?>" class="bg-indigo-600 text-white py-3 rounded-lg text-center font-bold hover:bg-indigo-500 shadow-lg shadow-indigo-500/30">Next Chapter</a>
+                    <a href="baca/<?= $comic_slug ?>/<?= $next_res['chapter_number'] ?>" class="bg-indigo-600 text-white py-3 rounded-lg text-center font-bold hover:bg-indigo-500 shadow-lg shadow-indigo-500/30">Next Chapter</a>
                 <?php else: ?>
                     <a href="comic.php?slug=<?= $comic_slug ?>" class="bg-gray-700 text-white py-3 rounded-lg text-center font-bold">Selesai</a>
                 <?php endif; ?>
