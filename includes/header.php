@@ -17,9 +17,31 @@ if (!isset($base_url)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <base href="<?= $base_url ?>"> 
+    <base href="<?= $base_url ?>/">
+
+    <?php
+    // Siapkan nilai default jika halaman bukan halaman detail komik
+    $meta_title = isset($og_title) ? $og_title : "Readmanga - Baca Manga Online";
+    $meta_desc = isset($og_desc) ? $og_desc : "Tempat baca manga, manhwa, dan manhua bahasa Indonesia terbaik dan terlengkap.";
+    $meta_image = isset($og_image) ? $og_image : $base_url . "/assets/default-cover.jpg";
+    $meta_url = isset($og_url) ? $og_url : $base_url;
+    ?>
     
-    <title>Readmanga - Baca Manga Online</title>
+    <title><?= $meta_title ?></title>
+
+    <meta name="description" content="<?= $meta_desc ?>">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?= $meta_url ?>">
+    <meta property="og:title" content="<?= $meta_title ?>">
+    <meta property="og:description" content="<?= $meta_desc ?>">
+    <meta property="og:image" content="<?= $meta_image ?>">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="<?= $meta_title ?>">
+    <meta name="twitter:description" content="<?= $meta_desc ?>">
+    <meta name="twitter:image" content="<?= $meta_image ?>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
