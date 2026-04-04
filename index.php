@@ -49,7 +49,7 @@ $total_pages = ceil($total_data / $limit);
     
     <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl md:text-2xl font-bold text-white border-l-4 border-indigo-500 pl-3">Update Terbaru</h2>
-        <a href="search.php" class="text-sm text-indigo-400 hover:text-white transition">Lihat Semua <i class="fas fa-arrow-right ml-1"></i></a>
+        <a href="search" class="text-sm text-indigo-400 hover:text-white transition">Lihat Semua <i class="fas fa-arrow-right ml-1"></i></a>
     </div>
 
     <?php if (mysqli_num_rows($result) > 0): ?>

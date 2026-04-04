@@ -87,7 +87,7 @@ if (strpos($coverUrl, 'http') !== 0) {
                     <?php if ($comic['genres']): ?>
                         <div class="flex flex-wrap justify-center gap-2 mt-3">
                             <?php foreach(explode(',', $comic['genres']) as $genre): ?>
-                                <a href="search.php?q=<?= urlencode(trim($genre)) ?>" class="px-2 py-1 bg-black/60 backdrop-blur hover:bg-indigo-600 text-white rounded text-[10px] font-bold border border-white/10 shadow-sm">
+                                <a href="search?q=<?= urlencode(trim($genre)) ?>" class="px-2 py-1 bg-black/60 backdrop-blur hover:bg-indigo-600 text-white rounded text-[10px] font-bold border border-white/10 shadow-sm">
                                     <?= trim($genre) ?>
                                 </a>
                             <?php endforeach; ?>

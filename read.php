@@ -164,7 +164,7 @@ $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comi
                 <select onchange="if(this.value) window.location.href=this.value" class="w-full bg-black text-white border border-gray-700 rounded p-2 text-center">
                     <option value="">-- Pilih Chapter --</option>
                     <?php while($ch = mysqli_fetch_assoc($all_chaps)): ?>
-                        <option value="read.php?slug=<?= $comic_slug ?>&chapter=<?= $ch['chapter_number'] ?>" <?= $ch['chapter_number'] == $chapter_num ? 'selected' : '' ?>>
+                        <option value="baca/<?= $comic_slug ?>/<?= $ch['chapter_number'] ?>" <?= $ch['chapter_number'] == $chapter_num ? 'selected' : '' ?>>
                             Chapter <?= formatChapterNumber($ch['chapter_number']) ?>
                         </option>
                     <?php endwhile; ?>

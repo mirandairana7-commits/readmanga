@@ -1,11 +1,13 @@
 RewriteEngine On
+
+# Jangan terapkan rule jika yang diakses adalah file/folder nyata (css, js, images)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# 1. Pretty URL Halaman Detail Komik
-# Mengubah: domain.com/comic.php?slug=naruto -> domain.com/komik/naruto
+# 1. Pretty URL Halaman Detail Komik & Baca Chapter
 RewriteRule ^komik/([a-zA-Z0-9-]+)/?$ comic.php?slug=$1 [L,QSA]
-
-# 2. Pretty URL Halaman Baca Chapter
-# Mengubah: domain.com/read.php?slug=naruto&chapter=1 -> domain.com/baca/naruto/1
 RewriteRule ^baca/([a-zA-Z0-9-]+)/([0-9.]+)/?$ read.php?slug=$1&chapter=$2 [L,QSA]
+
+# 2. Sembunyikan ekstensi .php untuk SEMUA file (login, search, register, dll)
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^(.*)$ $1.php [L,QSA]
