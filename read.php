@@ -41,6 +41,55 @@ $next_res = mysqli_fetch_assoc(mysqli_query($conn, $next_q));
 $all_chaps = mysqli_query($conn, "SELECT chapter_number FROM chapters WHERE comic_id = $comic_id ORDER BY chapter_number DESC");
 ?>
 
+<?php
+require_once 'config/database.php';
+
+$comic_slug = isset($_GET['slug']) ? trim($_GET['slug']) : '';
+$chapter_num = isset($_GET['chapter']) ? trim($_GET['chapter']) : '';
+
+// [KEAMANAN DITINGKATKAN]: Query Chapter Utama
+$query = "SELECT c.*, cm.title as comic_title, cm.slug as comic_slug, cm.id as comic_id, cm.cover_image as comic_cover, cm.description as comic_desc 
+          FROM chapters c JOIN comics cm ON c.comic_id = cm.id 
+          WHERE cm.slug = ? AND c.chapter_number = ?";
+$stmt = mysqli_prepare($conn, $query);
+mysqli_stmt_bind_param($stmt, "ss", $comic_slug, $chapter_num);
+mysqli_stmt_execute($stmt);
+$chapter = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+
+if (!$chapter) {
+    if($comic_slug) header("Location: comic.php?slug=$comic_slug");
+    else header("Location: index.php");
+    exit();
+}
+
+$chapter_id = $chapter['id'];
+$comic_id = $chapter['comic_id'];
+
+// [KEAMANAN DITINGKATKAN]: Ambil Gambar
+$stmt_img = mysqli_prepare($conn, "SELECT * FROM chapter_images WHERE chapter_id = ? ORDER BY display_order ASC");
+mysqli_stmt_bind_param($stmt_img, "i", $chapter_id);
+mysqli_stmt_execute($stmt_img);
+$images = mysqli_stmt_get_result($stmt_img);
+
+// [KEAMANAN DITINGKATKAN]: Navigasi Prev
+$stmt_prev = mysqli_prepare($conn, "SELECT chapter_number FROM chapters WHERE comic_id = ? AND chapter_number < ? ORDER BY chapter_number DESC LIMIT 1");
+mysqli_stmt_bind_param($stmt_prev, "is", $comic_id, $chapter_num);
+mysqli_stmt_execute($stmt_prev);
+$prev_res = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_prev));
+
+// [KEAMANAN DITINGKATKAN]: Navigasi Next
+$stmt_next = mysqli_prepare($conn, "SELECT chapter_number FROM chapters WHERE comic_id = ? AND chapter_number > ? ORDER BY chapter_number ASC LIMIT 1");
+mysqli_stmt_bind_param($stmt_next, "is", $comic_id, $chapter_num);
+mysqli_stmt_execute($stmt_next);
+$next_res = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_next));
+
+// [KEAMANAN DITINGKATKAN]: List Chapter untuk Dropdown
+$stmt_all = mysqli_prepare($conn, "SELECT chapter_number FROM chapters WHERE comic_id = ? ORDER BY chapter_number DESC");
+mysqli_stmt_bind_param($stmt_all, "i", $comic_id);
+mysqli_stmt_execute($stmt_all);
+$all_chaps = mysqli_stmt_get_result($stmt_all);
+?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>

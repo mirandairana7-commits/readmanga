@@ -1,28 +1,35 @@
 <?php
-// api_search.php
 require_once 'config/database.php';
-
 header('Content-Type: application/json');
 
-$keyword = isset($_GET['q']) ? mysqli_real_escape_string($conn, $_GET['q']) : '';
+$q = isset($_GET['q']) ? trim($_GET['q']) : '';
 
-if (strlen($keyword) < 2) {
-    echo json_encode([]); // Jangan cari kalau cuma 1 huruf
+if (empty($q)) {
+    echo json_encode([]);
     exit;
 }
 
-// UPDATE: Menambahkan kolom 'genres' ke dalam SELECT
-// Limit 6 hasil saja agar tidak kepanjangan
-$query = "SELECT title, slug, cover_image, type, status, genres 
-          FROM comics 
-          WHERE title LIKE '%$keyword%' OR alternative_titles LIKE '%$keyword%' 
-          LIMIT 6";
+$search_term = "%" . $q . "%";
 
-$result = mysqli_query($conn, $query);
+// [KEAMANAN DITINGKATKAN]: Prepared Statement untuk API
+$stmt = mysqli_prepare($conn, "SELECT title, slug, cover_image FROM comics WHERE title LIKE ? OR alternative_titles LIKE ? LIMIT 5");
+mysqli_stmt_bind_param($stmt, "ss", $search_term, $search_term);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+
 $data = [];
-
-while ($row = $result->fetch_assoc()) {
-    $data[] = $row;
+while ($row = mysqli_fetch_assoc($result)) {
+    // Pastikan link cover benar (lokal vs ImgBB)
+    $cover = $row['cover_image'];
+    if (strpos($cover, 'http') !== 0) {
+        $cover = $base_url . '/uploads/covers/' . $cover;
+    }
+    
+    $data[] = [
+        'title' => $row['title'],
+        'slug' => $row['slug'],
+        'cover' => $cover
+    ];
 }
 
 echo json_encode($data);

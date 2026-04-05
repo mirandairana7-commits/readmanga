@@ -47,6 +47,36 @@ if (strpos($coverUrl, 'http') !== 0) {
 }
 ?>
 
+<?php
+require_once 'config/database.php';
+
+$slug = isset($_GET['slug']) ? trim($_GET['slug']) : '';
+
+if (empty($slug)) {
+    header("Location: index.php");
+    exit();
+}
+
+// [KEAMANAN DITINGKATKAN]: Ambil Data Komik
+$stmt_comic = mysqli_prepare($conn, "SELECT * FROM comics WHERE slug = ?");
+mysqli_stmt_bind_param($stmt_comic, "s", $slug);
+mysqli_stmt_execute($stmt_comic);
+$comic = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt_comic));
+
+if (!$comic) {
+    header("Location: index.php");
+    exit();
+}
+
+$comic_id = $comic['id'];
+
+// [KEAMANAN DITINGKATKAN]: Ambil Daftar Chapter
+$stmt_chaps = mysqli_prepare($conn, "SELECT * FROM chapters WHERE comic_id = ? ORDER BY chapter_number DESC");
+mysqli_stmt_bind_param($stmt_chaps, "i", $comic_id);
+mysqli_stmt_execute($stmt_chaps);
+$chapters = mysqli_stmt_get_result($stmt_chaps);
+?>
+
 <div class="relative w-full h-[300px] md:h-[500px] overflow-hidden -mt-16 z-0">
     <img src="<?= $coverUrl ?>" class="w-full h-full object-cover blur-2xl opacity-40 scale-110">
     <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent"></div>

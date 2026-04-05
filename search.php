@@ -69,6 +69,27 @@ if (!empty($keyword) || $is_filtering) {
 require_once 'includes/header.php';
 ?>
 
+<?php
+require_once 'config/database.php';
+
+$search_query = isset($_GET['q']) ? trim($_GET['q']) : '';
+
+if (!empty($search_query)) {
+    $search_term = "%" . $search_query . "%";
+    
+    // [KEAMANAN DITINGKATKAN]: Prepared Statement untuk Pencarian
+    $stmt = mysqli_prepare($conn, "SELECT * FROM comics WHERE title LIKE ? OR alternative_titles LIKE ? ORDER BY title ASC");
+    mysqli_stmt_bind_param($stmt, "ss", $search_term, $search_term);
+    mysqli_stmt_execute($stmt);
+    $comics = mysqli_stmt_get_result($stmt);
+} else {
+    // Jika kosong, tampilkan semua atau kosongkan (sesuai logika awal Anda)
+    $stmt = mysqli_prepare($conn, "SELECT * FROM comics ORDER BY title ASC LIMIT 20");
+    mysqli_stmt_execute($stmt);
+    $comics = mysqli_stmt_get_result($stmt);
+}
+?>
+
 <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full mt-16 min-h-screen">
 
     <div class="max-w-4xl mx-auto mb-10">
